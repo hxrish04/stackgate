@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --page-bg: #0a1220;
+  --page-ink: #e5edf7;
+  --muted-ink: #94a3b8;
+  --surface: rgba(15, 23, 42, 0.72);
+  --surface-strong: rgba(15, 23, 42, 0.9);
+  --surface-border: rgba(148, 163, 184, 0.14);
+  --shadow-soft: 0 24px 60px rgba(2, 6, 23, 0.35);
+  --accent-blue: #60a5fa;
+  --accent-cyan: #2dd4bf;
+  --accent-coral: #f59e0b;
+  --accent-gold: #fbbf24;
+  --grid-line: rgba(148, 163, 184, 0.06);
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.12), transparent 22%),
+    radial-gradient(circle at 20% 80%, rgba(30, 41, 59, 0.24), transparent 26%),
+    linear-gradient(180deg, #0b1220 0%, #0f172a 48%, #111827 100%);
+  background-attachment: fixed;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--page-ink);
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  letter-spacing: -0.03em;
+}
+
+::selection {
+  background: rgba(71, 100, 255, 0.16);
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+}
+
+.app-shell::before,
+.app-shell::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  inset: auto;
+  z-index: 0;
+  filter: blur(18px);
+  opacity: 0.9;
+}
+
+.app-shell::before {
+  width: 18rem;
+  height: 18rem;
+  top: 5.5rem;
+  right: 6%;
+  background: radial-gradient(circle, rgba(30, 64, 175, 0.12) 0%, rgba(30, 64, 175, 0) 72%);
+}
+
+.app-shell::after {
+  width: 16rem;
+  height: 16rem;
+  bottom: 8%;
+  left: 4%;
+  background: radial-gradient(circle, rgba(71, 85, 105, 0.12) 0%, rgba(71, 85, 105, 0) 74%);
+}
+
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(20px);
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.94), rgba(15, 23, 42, 0.9));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow: 0 12px 34px rgba(2, 6, 23, 0.3);
+}
+
+.page-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.tf-card {
+  background: linear-gradient(180deg, var(--surface-strong), var(--surface));
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-soft);
+}
+
+.tf-input,
+.tf-select,
+.tf-textarea {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.82);
+  color: #e2e8f0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.tf-input,
+.tf-select {
+  min-height: 2.9rem;
+  padding: 0.7rem 0.9rem;
+}
+
+.tf-textarea {
+  padding: 0.8rem 0.9rem;
+}
+
+.tf-input:focus,
+.tf-select:focus,
+.tf-textarea:focus {
+  outline: none;
+  border-color: rgba(30, 64, 175, 0.45);
+  box-shadow:
+    0 0 0 4px rgba(59, 130, 246, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.tf-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.68);
+  padding: 0.35rem 0.75rem;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.tf-pill {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.tf-section-title {
+  color: #f8fafc;
+}
+
+.tf-muted {
+  color: var(--muted-ink);
+}
+
+.tf-hero-gradient {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.82)),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 32%),
+    radial-gradient(circle at bottom left, rgba(45, 212, 191, 0.09), transparent 28%);
+}
+
+/* Smooth timeline animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* Provisioning pulse */
+@keyframes provisionPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.animate-provision {
+  animation: provisionPulse 1.5s ease-in-out infinite;
+}
