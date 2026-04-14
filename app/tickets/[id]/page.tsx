@@ -81,6 +81,7 @@ function SpecRow({ label, value }: { label: string; value?: unknown }) {
 function shouldKeepTimelineEvent(event: TicketTimelineEvent) {
   if (event.type !== "step") return true;
 
+  // Collapse noisy worker chatter in the UI while keeping meaningful checkpoints visible.
   const importantStepSnippets = [
     "Job accepted",
     "Azure PostgreSQL Flexible Server creation started",
@@ -184,6 +185,8 @@ export default function TicketDetailPage() {
     (latestIndex, event, index) => (event.type === "validated" ? index : latestIndex),
     -1
   );
+  // When a draft is resubmitted, hide earlier validation failures so the visible timeline reflects
+  // the latest successful path instead of making the ticket look permanently broken.
   const visibleEvents = ticket.events.filter(
     (event, index) => !(event.type === "validation_failed" && latestSuccessfulValidationIndex > index)
   );

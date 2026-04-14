@@ -57,6 +57,7 @@ export default function DashboardClient({ initialTickets }: { initialTickets: Da
       }
     };
 
+    // Refresh when the tab becomes active again so the dashboard feels up to date after approvals/provisioning.
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         fetchTickets();

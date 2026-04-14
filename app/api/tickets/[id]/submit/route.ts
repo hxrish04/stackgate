@@ -95,6 +95,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   });
 
   if (policy.autoApprove) {
+    // Low-risk requests skip the inbox entirely and go straight into provisioning.
     await prisma.ticketEvent.create({
       data: {
         ticketId: id,
@@ -147,6 +148,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         },
       });
     } else {
+      // If every required step was satisfied by requester role context, keep the normal approval trail
+      // but continue directly into provisioning so the workflow still feels consistent on the ticket page.
       await prisma.ticketEvent.create({
         data: {
           ticketId: id,

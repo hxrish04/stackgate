@@ -1,7 +1,17 @@
 const baseUrl = process.env.STACKGATE_BASE_URL ?? "http://localhost:3000";
 
 async function request(path, init) {
-  const response = await fetch(`${baseUrl}${path}`, init);
+  let response;
+
+  try {
+    response = await fetch(`${baseUrl}${path}`, init);
+  } catch (error) {
+    throw new Error(
+      `Could not reach StackGate at ${baseUrl}. Start the app with "npm run dev" before running the smoke test.`,
+      { cause: error }
+    );
+  }
+
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
 
