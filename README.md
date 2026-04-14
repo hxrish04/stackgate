@@ -156,16 +156,10 @@ npm test
 
 That script submits low, medium, and high-risk requests and verifies the expected approval and provisioning behavior.
 
-## Repo Notes
-
-- This repository is safe to publish without local secrets as long as `.env` and `.env.local` stay uncommitted.
-- README screenshots should focus on the product flow, not personal account details.
-- Azure proof screenshots should redact subscription IDs, endpoints, and admin usernames.
-
 ## Roadmap
 
 - Add retry and decommission operations for provisioned resources.
-- Expand the provisioning adapter interface to support more providers beyond Azure simulation/live mode.
-- Add persistent in-app notifications and unread state.
-- Add architecture diagrams and demo assets to the README.
-- Harden the live provider path with better cleanup, rollback, and budget-aware safeguards.
+- Expand the provisioning adapter interface beyond simulation and the current guarded Azure path.
+- Add persistent in-app notifications and unread state for requesters and approvers.
+- Add architecture diagrams and richer product demo assets.
+- Harden the live provider path with stronger cleanup, rollback, and budget-aware safeguards.
