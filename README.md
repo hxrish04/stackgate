@@ -7,12 +7,19 @@ The goal is to feel like a real internal platform product, not a CRUD demo: requ
 ## System Snapshot
 
 ```mermaid
-flowchart LR
-    A["1. Request Intake"] --> B["2. AI Parsing"]
-    B --> C["3. Policy Review"]
-    C --> D["4. Approval Routing"]
-    D --> E["5. Provisioning"]
-    E --> F["6. Audit + Tracking"]
+flowchart TD
+    A["User submits PostgreSQL request"] --> B["AI structures the request"]
+    B --> C["Validation + risk check"]
+    C --> D{"Risk level"}
+
+    D -->|Low| E["Auto-approve"]
+    D -->|Medium / High| F["Route to approvers"]
+
+    E --> G["Provision database"]
+    F --> G
+
+    G --> H["Update ticket + audit trail"]
+    H --> I["Show status in dashboard"]
 ```
 
 At a glance, StackGate takes a database request, structures it with AI, applies policy rules, routes approvals when needed, provisions the resource, and keeps the full workflow visible in the ticket and dashboard.
