@@ -4,6 +4,19 @@ StackGate is an AI-assisted internal developer platform for PostgreSQL requests.
 
 The goal is to feel like a real internal platform product, not a CRUD demo: request intent goes in, policy-aware workflow and provisioning outcomes come out.
 
+## System Snapshot
+
+```mermaid
+flowchart LR
+    A["1. Request Intake"] --> B["2. AI Parsing"]
+    B --> C["3. Policy Review"]
+    C --> D["4. Approval Routing"]
+    D --> E["5. Provisioning"]
+    E --> F["6. Audit + Tracking"]
+```
+
+At a glance, StackGate takes a database request, structures it with AI, applies policy rules, routes approvals when needed, provisions the resource, and keeps the full workflow visible in the ticket and dashboard.
+
 ## Highlights
 
 - Natural-language intake powered by Anthropic Claude with a deterministic fallback parser.
