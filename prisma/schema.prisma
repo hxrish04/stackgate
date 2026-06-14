@@ -110,5 +110,12 @@ model ProvisionedResource {
   databaseName String?
   authMode     String?
   adminUsername String?
+  // Secret handling: we persist a Key Vault reference (URI + secret id), never the
+  // plaintext admin password. See lib/secrets.ts.
+  secretUri    String?
+  secretId     String?
+  // Lifecycle: active until decommissioned (destroy-on-date enforcement).
+  status          String    @default("active") // active | decommissioned
+  decommissionedAt DateTime?
   createdAt    DateTime @default(now())
 }

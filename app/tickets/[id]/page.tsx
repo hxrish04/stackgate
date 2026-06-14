@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/components/app-shell";
 import { canRoleApproveStep, getRoleLabelForStep } from "@/lib/approval-routing";
 import { runPolicyEngine } from "@/lib/policy-engine";
+import { estimateMonthlyCost, formatMonthlyCost } from "@/lib/cost";
 import type { TicketSpecInput } from "@/lib/types";
 import {
   Card,
@@ -45,6 +46,9 @@ interface TicketDetail {
     authMode?: string;
     adminUsername?: string;
     resourceId?: string;
+    secretUri?: string;
+    status?: string;
+    decommissionedAt?: string;
     createdAt: string;
   } | null;
 }
@@ -113,6 +117,10 @@ export default function TicketDetailPage() {
   const [loading, setLoading] = useState(true);
   const [approvalComment, setApprovalComment] = useState("");
   const [approving, setApproving] = useState(false);
+  const [terraform, setTerraform] = useState<string | null>(null);
+  const [terraformOpen, setTerraformOpen] = useState(false);
+  const [terraformLoading, setTerraformLoading] = useState(false);
+  const [decommissioning, setDecommissioning] = useState(false);
 
   const fetchTicket = useCallback(async () => {
     const response = await fetch(`/api/tickets/${id}`);
@@ -158,6 +166,40 @@ export default function TicketDetailPage() {
     }
   }
 
+  async function toggleTerraform() {
+    if (terraformOpen) {
+      setTerraformOpen(false);
+      return;
+    }
+    if (terraform === null) {
+      setTerraformLoading(true);
+      try {
+        const response = await fetch(`/api/tickets/${id}/terraform`);
+        setTerraform(response.ok ? await response.text() : "# Failed to generate Terraform plan");
+      } finally {
+        setTerraformLoading(false);
+      }
+    }
+    setTerraformOpen(true);
+  }
+
+  async function handleDecommission() {
+    if (!confirm("Decommission this resource? In simulation this tears it down and marks the ticket Decommissioned.")) {
+      return;
+    }
+    setDecommissioning(true);
+    try {
+      await fetch(`/api/maintenance/decommission`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: id }),
+      });
+      await fetchTicket();
+    } finally {
+      setDecommissioning(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -191,6 +233,11 @@ export default function TicketDetailPage() {
   );
   const condensedEvents = buildCondensedTimeline(visibleEvents);
   const policyPreview = runPolicyEngine(spec as Partial<TicketSpecInput>);
+  const costEstimate = estimateMonthlyCost(spec as Partial<TicketSpecInput>);
+  const canDecommission =
+    (user.role === "approver" || user.role === "admin") &&
+    ticket.status === "Provisioned" &&
+    ticket.resource?.status !== "decommissioned";
   const approvalHeadline = policyPreview.autoApprove
     ? "Why this request auto-approved"
     : "Why this request needs approval";
@@ -252,6 +299,12 @@ export default function TicketDetailPage() {
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <RiskBadge risk={policyPreview.riskLevel} />
               <CostBadge band={policyPreview.costBand} />
+              <span
+                className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-200"
+                title={`Estimate only. Compute $${costEstimate.breakdown.compute} + storage $${costEstimate.breakdown.storage} + backup $${costEstimate.breakdown.backup} + HA $${costEstimate.breakdown.highAvailability}`}
+              >
+                Est. {formatMonthlyCost(costEstimate)}
+              </span>
               {!policyPreview.autoApprove && policyPreview.requiredApprovals.length > 0 && (
                 <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-300">
                   Requires {policyPreview.requiredApprovals.join(" + ")} approval
@@ -312,7 +365,39 @@ export default function TicketDetailPage() {
             </div>
           )}
 
-          {ticket.status === "Provisioned" && ticket.resource && <ResourceOutputCard resource={ticket.resource} />}
+          {["Provisioned", "Decommissioned"].includes(ticket.status) && ticket.resource && (
+            <ResourceOutputCard resource={ticket.resource} />
+          )}
+
+          {canDecommission && (
+            <Card className="bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.82))] border-slate-800" title="Lifecycle">
+              <p className="mb-3 text-sm text-slate-300">
+                {spec.destroyOnDate
+                  ? `This resource is scheduled to be destroyed on ${String(spec.destroyOnDate)}.`
+                  : "No destroy-on date is set for this resource."}{" "}
+                Decommissioning tears the resource down (simulation only) and records an audit entry.
+              </p>
+              <button
+                onClick={handleDecommission}
+                disabled={decommissioning}
+                className="rounded-md bg-rose-950/70 px-5 py-2 text-sm font-semibold text-rose-200 transition-colors hover:bg-rose-900 disabled:opacity-50"
+              >
+                {decommissioning ? "Decommissioning..." : "Decommission"}
+              </button>
+            </Card>
+          )}
+
+          {ticket.status === "Decommissioned" && (
+            <Card className="border-slate-800 bg-slate-900/40">
+              <p className="text-sm text-slate-300">
+                This resource has been decommissioned
+                {ticket.resource?.decommissionedAt
+                  ? ` on ${format(new Date(ticket.resource.decommissionedAt), "MMM d, yyyy HH:mm")}`
+                  : ""}
+                . The teardown ran in simulation mode; no live Azure resource was affected.
+              </p>
+            </Card>
+          )}
 
           {canApprove && actionableApproval && (
             <div className="tf-card rounded-[1rem] p-5 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(15,23,42,0.82))] border-slate-800">
@@ -385,6 +470,33 @@ export default function TicketDetailPage() {
                 <p className="mb-1 text-xs uppercase tracking-[0.12em] text-slate-400">Business Justification</p>
                 <p className="text-sm leading-6 text-slate-200">{formatSentence(businessJustification)}</p>
               </div>
+            )}
+          </Card>
+
+          <Card title="Terraform Plan (reviewable IaC)">
+            <p className="mb-4 text-sm text-slate-300">
+              StackGate renders this request as Azure Terraform so it can be reviewed before any apply. The admin
+              password is wired through a variable and never written into the plan.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={toggleTerraform}
+                disabled={terraformLoading}
+                className="rounded-md bg-sky-500 px-5 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-sky-400 disabled:opacity-50"
+              >
+                {terraformLoading ? "Generating..." : terraformOpen ? "Hide Terraform plan" : "View Terraform plan"}
+              </button>
+              <a
+                href={`/api/tickets/${id}/terraform?download=1`}
+                className="rounded-md border border-slate-700 bg-slate-900 px-5 py-2 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
+              >
+                Download .tf
+              </a>
+            </div>
+            {terraformOpen && terraform && (
+              <pre className="mt-4 max-h-96 overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-xs leading-5 text-slate-200 font-mono whitespace-pre">
+                {terraform}
+              </pre>
             )}
           </Card>
 

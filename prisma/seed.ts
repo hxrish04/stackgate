@@ -89,6 +89,10 @@ async function main() {
           databaseName: "paymentsdb",
           authMode: "password",
           adminUsername: "paymentsadmin",
+          // Key Vault reference only — never the plaintext password (see lib/secrets.ts).
+          secretUri: "https://kv-stackgate-sim.vault.azure.net/secrets/payments-dev-001-admin-password/8f1c2a4e9b7d4c2f",
+          secretId: "8f1c2a4e9b7d4c2f",
+          status: "active",
         },
       },
     },

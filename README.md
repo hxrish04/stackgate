@@ -1,8 +1,8 @@
 # StackGate
 
-StackGate is an AI-assisted internal developer platform for PostgreSQL requests. It turns plain-English infrastructure asks into structured specs, validates them, classifies risk, routes approvals, and provisions resources with a visible audit trail.
+StackGate is an AI-assisted internal developer platform that turns natural language into **reviewable Infrastructure-as-Code**. A plain-English PostgreSQL ask becomes a structured spec, gets validated, risk- and cost-scored, routed for approval, rendered as a reviewable Terraform plan, and provisioned with a visible audit trail and lifecycle controls.
 
-The goal is to feel like a real internal platform product, not a CRUD demo: request intent goes in, policy-aware workflow and provisioning outcomes come out.
+The goal is to feel like a real internal platform product, not a CRUD demo: request intent goes in, governed IaC and provisioning outcomes come out.
 
 ## System Snapshot
 
@@ -27,11 +27,15 @@ At a glance, StackGate takes a database request, structures it with AI, applies 
 ## Highlights
 
 - Natural-language intake powered by Anthropic Claude with a deterministic fallback parser.
+- Natural language → reviewable Terraform (HCL): every request renders a valid Azure Terraform plan you can review and download before any apply.
 - Policy engine that classifies low, medium, and high-risk requests based on cost, environment, data sensitivity, and networking.
+- Static monthly cost estimate (USD) surfaced on the policy preview and ticket detail, with a compute/storage/backup/HA breakdown.
 - Role-based workflow with requester, approver, and admin experiences.
 - Approval routing with rationale, comments, and ticket-level audit history.
 - Simulation-first provisioning flow for safe demos.
 - Guarded Azure live provisioning path for a narrow low-risk dev profile.
+- Resource lifecycle: destroy-on-date enforcement plus a manual/sweep decommission path (simulation-only teardown with audit entries).
+- Secret handling through a Key Vault abstraction: provisioning stores only a vault reference (URI + secret id), never the plaintext password.
 - Resource handoff card with connection details once provisioning completes.
 
 ## Product Flow
@@ -83,8 +87,44 @@ For a guarded low-risk profile, StackGate can provision a real Azure Database fo
 | Request intake | AI parsing, voice draft support, structured form editing |
 | Policy | Validation, risk classification, cost banding, approval routing |
 | Workflow | Auto-approval, manager approval, platform approval, audit trail |
+| IaC | NL → reviewable Terraform (HCL) plan, view + download per ticket |
+| Cost | Static monthly USD estimate with compute/storage/backup/HA breakdown |
 | Provisioning | Simulation adapter, guarded Azure adapter, resource output card |
+| Lifecycle | Destroy-on-date enforcement, manual + sweep decommission (simulation teardown) |
+| Secrets | Key Vault abstraction — stores a vault reference, never the plaintext password |
 | UX | Dashboard, approvals inbox, ticket detail, policy preview, notifications banner |
+
+## Infrastructure-as-Code, Cost, Lifecycle, and Secrets
+
+### Natural language → reviewable Terraform
+
+Every ticket can be rendered as a valid Azure Terraform plan (`lib/terraform.ts`) covering the resource group, PostgreSQL flexible server, database, an optional firewall rule, and tags (owner, team, environment, data classification, and `destroy_on`). The plan is review-first: the admin password is wired through a `sensitive` Terraform variable and never written into the file. View or download it from the ticket detail, or fetch it directly:
+
+```
+GET /api/tickets/:id/terraform            # inline text/plain HCL
+GET /api/tickets/:id/terraform?download=1 # downloads <server>.tf
+```
+
+The route is auth-gated via the signed session (`getSessionUser`).
+
+### Monthly cost estimate
+
+`lib/cost.ts` holds a static Azure pricing map (per-vCore-hour by tier, per-GB storage, backup retention beyond the free window, plus an HA standby) and produces an itemized monthly USD estimate. It is surfaced on the policy/preview step and the ticket detail. **It is an estimate only** — real Azure billing varies by region, runtime, and reservations.
+
+### Resource lifecycle: decommission / destroy-on-date
+
+Specs carry a `destroyOnDate`. The decommission endpoint enforces it (simulation only — it never tears down real Azure infrastructure):
+
+```
+POST /api/maintenance/decommission { "ticketId": "..." }  # manual, one ticket
+POST /api/maintenance/decommission {}                      # sweep all expired
+```
+
+Decommissioning marks the resource `decommissioned`, flips the ticket to `Decommissioned`, and writes an audit entry. Approvers and admins see a manual **Decommission** action on provisioned tickets.
+
+### Secret handling via a Key Vault abstraction
+
+`lib/secrets.ts` defines a `SecretStore` interface. The `SimulationSecretStore` returns a *reference* — an Azure Key Vault-style URI (`https://<vault>.vault.azure.net/secrets/<name>/<version>`) plus a secret id — instead of the plaintext password. Provisioning generates the DB password, hands it to the store, and persists only the reference on the resource. The plaintext is never written to the database or the audit log. The production implementation (Azure Key Vault via `@azure/keyvault-secrets` + `@azure/identity`) is documented in comments in that module.
 
 ## Tech Stack
 
@@ -178,7 +218,9 @@ That script submits low, medium, and high-risk requests and verifies the expecte
 
 ## Roadmap
 
-- Add retry and decommission operations for provisioned resources.
+- Add retry operations and a scheduled job that runs the destroy-on-date decommission sweep automatically.
+- Back the `SecretStore` seam with a live Azure Key Vault implementation.
+- Run `terraform plan`/`apply` from the generated HCL behind the guarded provider path.
 - Expand the provisioning adapter interface beyond simulation and the current guarded Azure path.
 - Add persistent in-app notifications and unread state for requesters and approvers.
 - Add architecture diagrams and richer product demo assets.

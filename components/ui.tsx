@@ -13,6 +13,7 @@ const STATUS_COLORS: Record<string, string> = {
   Queued: "bg-slate-900 text-slate-300 border-slate-700",
   Provisioning: "bg-sky-950/60 text-sky-300 border-sky-800",
   Provisioned: "bg-cyan-950/60 text-cyan-300 border-cyan-800",
+  Decommissioned: "bg-slate-900 text-slate-400 border-slate-700",
   Failed: "bg-red-950/60 text-red-300 border-red-800",
   Cancelled: "bg-slate-900 text-slate-400 border-slate-700",
 };
@@ -60,6 +61,9 @@ export interface ProvisionedResource {
   authMode?: string | null;
   adminUsername?: string | null;
   resourceId?: string | null;
+  secretUri?: string | null;
+  status?: string | null;
+  decommissionedAt?: string | null;
   createdAt: string;
 }
 
@@ -164,10 +168,11 @@ export function ResourceOutputCard({ resource }: { resource: ProvisionedResource
         <OutputField label="Database" value={resource.databaseName} mono />
         <OutputField label="Region" value={resource.region} />
         <OutputField label="Auth Mode" value={resource.authMode} />
+        {resource.secretUri && <OutputField label="Admin Secret (Key Vault ref)" value={resource.secretUri} mono />}
       </div>
 
       <div className="mt-4 rounded-2xl border border-cyan-900/70 bg-cyan-950/40 p-4 text-sm text-cyan-100">
-        StackGate keeps provider resource IDs and connection-string details out of the default handoff view so the ticket stays safe to share in demos and screenshots.
+        The admin password is stored as a Key Vault reference, never as plaintext — only the vault URI is shown here. StackGate also keeps provider resource IDs and connection strings out of the default handoff view so the ticket stays safe to share in demos and screenshots.
       </div>
     </div>
   );

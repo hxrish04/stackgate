@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { prisma } from "./db";
 import type { TicketSpecInput } from "./types";
+import { adminPasswordSecretName, getSecretStore } from "./secrets";
 
 const execFileAsync = promisify(execFile);
 
@@ -107,6 +108,8 @@ async function completeProvisioning(
     databaseName: string;
     authMode: string;
     adminUsername: string;
+    secretUri?: string;
+    secretId?: string;
   }
 ) {
   await prisma.provisionedResource.upsert({
@@ -274,6 +277,14 @@ class SimulationProvisioningAdapter implements ProvisioningAdapter {
         );
       }
 
+      // Generate the admin password and hand it to the secret store, persisting only
+      // the returned reference — the plaintext never touches the database or the log.
+      const adminPassword = generatePassword();
+      const secretRef = await getSecretStore().storeSecret(
+        adminPasswordSecretName(spec.serverName ?? "stackgate-server"),
+        adminPassword
+      );
+
       const fqdn = `${spec.serverName}.postgres.database.azure.com`;
       await completeProvisioning(ticketId, this.mode, spec, {
         resourceId: `/subscriptions/sim-${Date.now()}/resourceGroups/rg-stackgate-${spec.environment}/providers/Microsoft.DBforPostgreSQL/flexibleServers/${spec.serverName}`,
@@ -283,6 +294,8 @@ class SimulationProvisioningAdapter implements ProvisioningAdapter {
         databaseName: spec.databaseName ?? "",
         authMode: spec.authMode ?? "password",
         adminUsername: spec.adminUsername ?? "",
+        secretUri: secretRef.uri,
+        secretId: secretRef.id,
       });
     } catch (error) {
       await failProvisioning(ticketId, this.mode, error);
@@ -310,6 +323,11 @@ class AzureProvisioningAdapter implements ProvisioningAdapter {
     try {
       const ipRange = cidrToAzureRange(spec.allowedIpRanges ?? "");
       const adminPassword = generatePassword();
+      // Persist only a Key Vault reference to the credential, never the plaintext.
+      const secretRef = await getSecretStore().storeSecret(
+        adminPasswordSecretName(spec.serverName ?? "stackgate-server"),
+        adminPassword
+      );
 
       await emitProvisioningEvent(ticketId, "Job accepted - validating Azure provisioning context");
 
@@ -391,6 +409,8 @@ class AzureProvisioningAdapter implements ProvisioningAdapter {
         databaseName: spec.databaseName ?? "",
         authMode: "password",
         adminUsername: spec.adminUsername ?? "",
+        secretUri: secretRef.uri,
+        secretId: secretRef.id,
       });
     } catch (error) {
       await failProvisioning(ticketId, this.mode, error);
