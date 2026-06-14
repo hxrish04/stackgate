@@ -8,7 +8,7 @@ The goal is to feel like a real internal platform product, not a CRUD demo: requ
 
 ![StackGate system architecture](docs/architecture.png)
 
-At a glance, StackGate takes a database request, structures it with AI, applies policy rules (risk + cost), routes approvals when needed, renders a reviewable Terraform plan, provisions the resource (storing a Key Vault secret reference, never the plaintext), and keeps the full workflow — including lifecycle decommission — visible in the ticket and dashboard.
+At a glance, StackGate takes a database request, structures it with AI, applies policy rules (risk + cost), routes approvals when needed, renders a reviewable Terraform plan, provisions the resource (storing a Key Vault secret reference, never the plaintext), and keeps the full workflow, including lifecycle decommission, visible in the ticket and dashboard.
 
 ## Highlights
 
@@ -42,7 +42,7 @@ The dashboard frames StackGate as an internal platform rather than a form-only a
 
 ![StackGate dashboard](docs/screenshots/01-dashboard.png)
 
-### 2. Provisioned Ticket — Terraform, Cost, Key Vault, Lifecycle
+### 2. Provisioned Ticket: Terraform, Cost, Key Vault, Lifecycle
 
 A provisioned ticket shows the policy rationale and monthly cost estimate, the generated **Terraform plan** (view/download), a **Key Vault secret reference** (no plaintext password), the resource handoff, and a **decommission** action for destroy-on-date lifecycle control.
 
@@ -65,7 +65,7 @@ Approvers review policy-routed medium/high-risk requests with risk and cost cont
 | Cost | Static monthly USD estimate with compute/storage/backup/HA breakdown |
 | Provisioning | Simulation adapter, guarded Azure adapter, resource output card |
 | Lifecycle | Destroy-on-date enforcement, manual + sweep decommission (simulation teardown) |
-| Secrets | Key Vault abstraction — stores a vault reference, never the plaintext password |
+| Secrets | Key Vault abstraction, stores a vault reference, never the plaintext password |
 | UX | Dashboard, approvals inbox, ticket detail, policy preview, notifications banner |
 
 ## Infrastructure-as-Code, Cost, Lifecycle, and Secrets
@@ -83,11 +83,11 @@ The route is auth-gated via the signed session (`getSessionUser`).
 
 ### Monthly cost estimate
 
-`lib/cost.ts` holds a static Azure pricing map (per-vCore-hour by tier, per-GB storage, backup retention beyond the free window, plus an HA standby) and produces an itemized monthly USD estimate. It is surfaced on the policy/preview step and the ticket detail. **It is an estimate only** — real Azure billing varies by region, runtime, and reservations.
+`lib/cost.ts` holds a static Azure pricing map (per-vCore-hour by tier, per-GB storage, backup retention beyond the free window, plus an HA standby) and produces an itemized monthly USD estimate. It is surfaced on the policy/preview step and the ticket detail. **It is an estimate only**, real Azure billing varies by region, runtime, and reservations.
 
 ### Resource lifecycle: decommission / destroy-on-date
 
-Specs carry a `destroyOnDate`. The decommission endpoint enforces it (simulation only — it never tears down real Azure infrastructure):
+Specs carry a `destroyOnDate`. The decommission endpoint enforces it (simulation only, it never tears down real Azure infrastructure):
 
 ```
 POST /api/maintenance/decommission { "ticketId": "..." }  # manual, one ticket
@@ -98,7 +98,7 @@ Decommissioning marks the resource `decommissioned`, flips the ticket to `Decomm
 
 ### Secret handling via a Key Vault abstraction
 
-`lib/secrets.ts` defines a `SecretStore` interface. The `SimulationSecretStore` returns a *reference* — an Azure Key Vault-style URI (`https://<vault>.vault.azure.net/secrets/<name>/<version>`) plus a secret id — instead of the plaintext password. Provisioning generates the DB password, hands it to the store, and persists only the reference on the resource. The plaintext is never written to the database or the audit log. The production implementation (Azure Key Vault via `@azure/keyvault-secrets` + `@azure/identity`) is documented in comments in that module.
+`lib/secrets.ts` defines a `SecretStore` interface. The `SimulationSecretStore` returns a *reference*, an Azure Key Vault-style URI (`https://<vault>.vault.azure.net/secrets/<name>/<version>`) plus a secret id, instead of the plaintext password. Provisioning generates the DB password, hands it to the store, and persists only the reference on the resource. The plaintext is never written to the database or the audit log. The production implementation (Azure Key Vault via `@azure/keyvault-secrets` + `@azure/identity`) is documented in comments in that module.
 
 ## Tech Stack
 
