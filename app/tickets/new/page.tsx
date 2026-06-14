@@ -290,7 +290,7 @@ function NewTicketPageContent() {
     const response = await fetch("/api/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requesterId: user.id, spec }),
+      body: JSON.stringify({ spec }),
     });
     const ticket = await readJsonResponse(response);
     if (!response.ok) {

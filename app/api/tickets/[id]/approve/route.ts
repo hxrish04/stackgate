@@ -3,81 +3,111 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { canRoleApproveStep, getRoleLabelForStep } from "@/lib/approval-routing";
 import { queueProvisioning } from "@/lib/provisioning";
+import { getSessionUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = await req.json();
-  const { approverId, decision, comment, stepType } = body;
+
+  // The approver is the authenticated user — never taken from the request body.
+  const actor = await getSessionUser();
+  if (!actor) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const { decision, comment, stepType } = body;
 
   if (!["approved", "rejected"].includes(decision)) {
     return NextResponse.json({ error: "decision must be approved or rejected" }, { status: 400 });
   }
 
-  const ticket = await prisma.ticket.findUnique({
-    where: { id },
-    include: { approvals: true, requester: true },
-  });
-  if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Read-decide-write happens inside a transaction so two concurrent approvals
+  // can't both observe a pending step and both queue provisioning.
+  const result = await prisma.$transaction(async (tx) => {
+    const ticket = await tx.ticket.findUnique({
+      where: { id },
+      include: { approvals: true },
+    });
+    if (!ticket) return { http: 404, body: { error: "Not found" } } as const;
 
-  // Find the pending approval to update
-  const pendingApproval = ticket.approvals.find(
-    (a) => a.decision === "pending" && (stepType ? a.stepType === stepType : true)
-  );
-  if (!pendingApproval) {
-    return NextResponse.json({ error: "No pending approval found" }, { status: 400 });
-  }
+    // Status guard: only a ticket actively awaiting approval can be acted on.
+    // Prevents re-approving an already-Approved/Provisioning ticket.
+    if (ticket.status !== "Ready for Approval") {
+      return { http: 409, body: { error: "Ticket is not awaiting approval" } } as const;
+    }
 
-  const approver = await prisma.user.findUnique({ where: { id: approverId } });
-  if (!canRoleApproveStep(approver?.role, pendingApproval.stepType)) {
-    return NextResponse.json(
-      {
-        error: `${approver?.name ?? "This user"} cannot approve the ${pendingApproval.stepType} step. ${getRoleLabelForStep(
-          pendingApproval.stepType as "manager" | "platform"
-        )} role required.`,
-      },
-      { status: 403 }
+    // Separation of duties: a requester can never approve their own request.
+    if (actor.id === ticket.requesterId) {
+      return { http: 403, body: { error: "You cannot approve your own request" } } as const;
+    }
+
+    const pendingApproval = ticket.approvals.find(
+      (a) => a.decision === "pending" && (stepType ? a.stepType === stepType : true)
     );
-  }
-  const approverName = approver?.name ?? "Approver";
+    if (!pendingApproval) {
+      return { http: 400, body: { error: "No pending approval found" } } as const;
+    }
 
-  // Update the approval record
-  await prisma.approval.update({
-    where: { id: pendingApproval.id },
-    data: { approverId, decision, comment, decidedAt: new Date() },
-  });
+    // Authorize the actor's role against the step they're trying to approve.
+    if (!canRoleApproveStep(actor.role, pendingApproval.stepType)) {
+      return {
+        http: 403,
+        body: {
+          error: `Your role cannot approve the ${pendingApproval.stepType} step. ${getRoleLabelForStep(
+            pendingApproval.stepType as "manager" | "platform"
+          )} role required.`,
+        },
+      } as const;
+    }
 
-  if (decision === "rejected") {
-    await prisma.ticket.update({ where: { id }, data: { status: "Rejected" } });
-    await prisma.ticketEvent.create({
+    await tx.approval.update({
+      where: { id: pendingApproval.id },
+      data: { approverId: actor.id, decision, comment, decidedAt: new Date() },
+    });
+
+    if (decision === "rejected") {
+      await tx.ticket.update({ where: { id }, data: { status: "Rejected" } });
+      await tx.ticketEvent.create({
+        data: {
+          ticketId: id,
+          type: "rejected",
+          level: "error",
+          message: `Rejected by ${actor.name}${comment ? `: ${comment}` : ""}`,
+          actor: actor.name,
+        },
+      });
+      return { http: 200, body: { status: "Rejected" }, queue: false } as const;
+    }
+
+    const updatedApprovals = await tx.approval.findMany({ where: { ticketId: id } });
+    const allApproved =
+      updatedApprovals.length > 0 && updatedApprovals.every((a) => a.decision === "approved");
+
+    await tx.ticketEvent.create({
       data: {
         ticketId: id,
-        type: "rejected",
-        level: "error",
-        message: `Rejected by ${approverName}${comment ? `: ${comment}` : ""}`,
-        actor: approverName,
+        type: "approved",
+        level: "success",
+        message: `${pendingApproval.stepType} approval granted by ${actor.name}${comment ? `: ${comment}` : ""}`,
+        actor: actor.name,
       },
     });
-    return NextResponse.json({ status: "Rejected" });
-  }
 
-  // Check if all approvals are now done
-  const updatedApprovals = await prisma.approval.findMany({ where: { ticketId: id } });
-  const allApproved = updatedApprovals.every((a) => a.decision === "approved");
+    if (allApproved) {
+      await tx.ticket.update({ where: { id }, data: { status: "Approved" } });
+    }
 
-  await prisma.ticketEvent.create({
-    data: {
-      ticketId: id,
-      type: "approved",
-      level: "success",
-      message: `${pendingApproval.stepType} approval granted by ${approverName}${comment ? `: ${comment}` : ""}`,
-      actor: approverName,
-    },
+    return {
+      http: 200,
+      body: { status: allApproved ? "Approved" : "Ready for Approval" },
+      queue: allApproved,
+    } as const;
   });
 
-  if (allApproved) {
-    await prisma.ticket.update({ where: { id }, data: { status: "Approved" } });
-    queueProvisioning(id);
+  if (result.http !== 200) {
+    return NextResponse.json(result.body, { status: result.http });
   }
 
-  return NextResponse.json({ status: allApproved ? "Approved" : "Ready for Approval" });
+  // Kick off provisioning only after the approval transaction has committed.
+  if ("queue" in result && result.queue) queueProvisioning(id);
+
+  return NextResponse.json(result.body);
 }

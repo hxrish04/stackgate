@@ -145,7 +145,6 @@ export default function TicketDetailPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          approverId: user.id,
           decision,
           comment: approvalComment,
           stepType: pendingStep?.stepType,

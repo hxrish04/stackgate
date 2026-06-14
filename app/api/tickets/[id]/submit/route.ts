@@ -4,9 +4,13 @@ import { getSelfSatisfiedApprovalSteps } from "@/lib/approval-routing";
 import { runPolicyEngine } from "@/lib/policy-engine";
 import { queueProvisioning } from "@/lib/provisioning";
 import { validateTicketSpec } from "@/lib/validation";
+import { getSessionUser } from "@/lib/auth";
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+
+  const actor = await getSessionUser();
+  if (!actor) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
   const ticket = await prisma.ticket.findUnique({
     where: { id },
@@ -14,6 +18,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   });
 
   if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Only the owning requester (or an admin) can submit a draft.
+  if (actor.id !== ticket.requesterId && actor.role !== "admin") {
+    return NextResponse.json({ error: "You can only submit your own request" }, { status: 403 });
+  }
   if (!["Draft", "Needs Info"].includes(ticket.status)) {
     return NextResponse.json({ error: "Ticket is not in a submittable state" }, { status: 400 });
   }

@@ -103,15 +103,51 @@ function ProvisioningModeBadge() {
   );
 }
 
+// Establish (or switch) the server-owned demo session. The selected user id is
+// validated server-side before a signed, httpOnly cookie is issued.
+async function postSession(userId: string) {
+  await fetch("/api/auth/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  });
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MockUser>(MOCK_USERS[0]);
+  const [authReady, setAuthReady] = useState(false);
   const [notice, setNotice] = useState<UserTicketNotice | null>(null);
   const router = useRouter();
 
+  const applyUser = (nextUser: MockUser) => {
+    setUser(nextUser);
+    localStorage.setItem("tf_user", nextUser.id);
+  };
+
   useEffect(() => {
-    // Always boot into Alice so demos start in the requester flow by default.
-    setUser(MOCK_USERS[0]);
-    localStorage.setItem("tf_user", MOCK_USERS[0].id);
+    let cancelled = false;
+    // Restore an existing server session, or establish the default demo session
+    // so the server (not the client) owns identity from the first request.
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/session", { cache: "no-store" });
+        const data = res.ok ? await res.json() : null;
+        if (cancelled) return;
+        if (data?.user) {
+          applyUser(data.user as MockUser);
+        } else {
+          await postSession(MOCK_USERS[0].id);
+          if (!cancelled) applyUser(MOCK_USERS[0]);
+        }
+      } catch {
+        // Demo fallback: keep the default user in local state.
+      } finally {
+        if (!cancelled) setAuthReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -144,12 +180,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setNotice(latestRelevant);
     }
 
-    fetchNotice();
+    if (authReady) fetchNotice();
 
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, authReady]);
 
   const dismissNotice = () => {
     if (!notice) return;
@@ -157,9 +193,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setNotice(null);
   };
 
-  const handleUserChange = (nextUser: MockUser) => {
-    setUser(nextUser);
-    localStorage.setItem("tf_user", nextUser.id);
+  const handleUserChange = async (nextUser: MockUser) => {
+    await postSession(nextUser.id);
+    applyUser(nextUser);
     router.push("/");
   };
 
@@ -237,7 +273,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        <main className="page-wrap max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
+        <main className="page-wrap max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{authReady ? children : null}</main>
       </div>
     </AuthContext.Provider>
   );
