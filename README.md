@@ -6,23 +6,9 @@ The goal is to feel like a real internal platform product, not a CRUD demo: requ
 
 ## System Snapshot
 
-```mermaid
-flowchart TD
-    A["User submits PostgreSQL request"] --> B["AI structures the request"]
-    B --> C["Validation + risk check"]
-    C --> D{"Risk level"}
+![StackGate system architecture](docs/architecture.png)
 
-    D -->|Low| E["Auto-approve"]
-    D -->|Medium / High| F["Route to approvers"]
-
-    E --> G["Provision database"]
-    F --> G
-
-    G --> H["Update ticket + audit trail"]
-    H --> I["Show status in dashboard"]
-```
-
-At a glance, StackGate takes a database request, structures it with AI, applies policy rules, routes approvals when needed, provisions the resource, and keeps the full workflow visible in the ticket and dashboard.
+At a glance, StackGate takes a database request, structures it with AI, applies policy rules (risk + cost), routes approvals when needed, renders a reviewable Terraform plan, provisions the resource (storing a Key Vault secret reference, never the plaintext), and keeps the full workflow — including lifecycle decommission — visible in the ticket and dashboard.
 
 ## Highlights
 
@@ -52,33 +38,21 @@ At a glance, StackGate takes a database request, structures it with AI, applies 
 
 ### 1. Dashboard Overview
 
-The dashboard frames StackGate as an internal platform rather than a form-only app. It surfaces workflow health, recent requests, and the current provider mode at a glance.
+The dashboard frames StackGate as an internal platform rather than a form-only app: workflow health, recent requests, and approval attention with risk + cost bands at a glance.
 
 ![StackGate dashboard](docs/screenshots/01-dashboard.png)
 
-### 2. AI Intake and Policy Preview
+### 2. Provisioned Ticket — Terraform, Cost, Key Vault, Lifecycle
 
-Requesters start with a plain-English description. StackGate parses the prompt into a structured spec and previews the likely policy outcome before submission.
+A provisioned ticket shows the policy rationale and monthly cost estimate, the generated **Terraform plan** (view/download), a **Key Vault secret reference** (no plaintext password), the resource handoff, and a **decommission** action for destroy-on-date lifecycle control.
 
-![AI intake and policy preview](docs/screenshots/02-ai-intake-policy-preview.png)
+![Provisioned ticket detail](docs/screenshots/02-ticket-provisioned.png)
 
-### 3. Approval-Routed Medium-Risk Ticket
+### 3. Approval Inbox
 
-Medium-risk requests stay visible and explainable. The ticket detail page shows why the request was routed for approval instead of auto-approved.
+Approvers review policy-routed medium/high-risk requests with risk and cost context, enough to act quickly without digging through raw infrastructure details.
 
-![Medium-risk ticket detail](docs/screenshots/03-medium-risk-ticket.png)
-
-### 4. Approval Inbox
-
-Approvers review policy-routed requests with enough context to act quickly without digging through raw infrastructure details.
-
-![Approval inbox](docs/screenshots/04-approval-inbox.png)
-
-### 5. Live Azure Proof
-
-For a guarded low-risk profile, StackGate can provision a real Azure Database for PostgreSQL flexible server. Sensitive account details are redacted in the screenshot below.
-
-![Azure PostgreSQL proof](docs/screenshots/05-azure-proof.png)
+![Approval inbox](docs/screenshots/03-approval-inbox.png)
 
 ## Feature Set
 
