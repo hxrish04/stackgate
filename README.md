@@ -6,7 +6,7 @@ The goal is to feel like a real internal platform product, not a CRUD demo: requ
 
 ## System Snapshot
 
-![StackGate system architecture](docs/architecture.png)
+![StackGate system architecture](docs/architecture.webp)
 
 At a glance, StackGate takes a database request, structures it with AI, applies policy rules (risk + cost), routes approvals when needed, renders a reviewable Terraform plan, provisions the resource (storing a Key Vault secret reference, never the plaintext), and keeps the full workflow, including lifecycle decommission, visible in the ticket and dashboard.
 
@@ -40,19 +40,19 @@ At a glance, StackGate takes a database request, structures it with AI, applies 
 
 The dashboard frames StackGate as an internal platform rather than a form-only app: workflow health, recent requests, and approval attention with risk + cost bands at a glance.
 
-![StackGate dashboard](docs/screenshots/01-dashboard.png)
+![StackGate dashboard](docs/screenshots/01-dashboard.webp)
 
 ### 2. Provisioned Ticket: Terraform, Cost, Key Vault, Lifecycle
 
 A provisioned ticket shows the policy rationale and monthly cost estimate, the generated **Terraform plan** (view/download), a **Key Vault secret reference** (no plaintext password), the resource handoff, and a **decommission** action for destroy-on-date lifecycle control.
 
-![Provisioned ticket detail](docs/screenshots/02-ticket-provisioned.png)
+![Provisioned ticket detail](docs/screenshots/02-ticket-provisioned.webp)
 
 ### 3. Approval Inbox
 
 Approvers review policy-routed medium/high-risk requests with risk and cost context, enough to act quickly without digging through raw infrastructure details.
 
-![Approval inbox](docs/screenshots/03-approval-inbox.png)
+![Approval inbox](docs/screenshots/03-approval-inbox.webp)
 
 ## Feature Set
 
